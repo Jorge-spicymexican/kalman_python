@@ -15,7 +15,7 @@ def draw_function(p, v, mus, covs, measured_p):
     Pylabel = "Position (Meters)"
     Vylabel = "Velocity (m/s)"
     figure, (ax1, ax2) = plt.subplots(2)
-    plt.subplots_adjust(left=0.11, bottom=0.33)
+    plt.subplots_adjust(left=0.11, bottom=0.40)
 
     ax1.grid
     lines1 = ax1.plot(p,"-b")
@@ -48,20 +48,22 @@ of variance error and initial measurements.
 """
 
 
-def draw_interactive_controls(E_mea, Var, dt, init_X, init_V):
+def draw_interactive_controls(E_mea, Var, dt, init_X, init_V, samplingperiod):
     # Placing Sliders onto the Plot GUI
     axK = plt.axes([0.1, 0.01, 0.75, 0.03])
     axB = plt.axes([0.1, 0.06, 0.75, 0.03])
     axN = plt.axes([0.1, 0.11, 0.75, 0.03])
     axX = plt.axes([0.1, 0.16, 0.75, 0.03])
     axV = plt.axes([0.1, 0.21, 0.75, 0.03])
+    axS = plt.axes([0.1, 0.26, 0.75, 0.03])
 
     Nslider = Slider(axN, "E_Mea", 0.0, 4, valinit=E_mea, valfmt='%1.3f')
     Bslider = Slider(axB, "Var(A)", 0, 0.25, valinit=Var, valfmt='%1.3f')
     Kslider = Slider(axK, "dT", 0.00, 0.65, valinit=dt, valfmt='%1.3f')
+    Samplingslider = Slider(axS, "Sample-Rate", 0.00, 100, valinit=samplingperiod, valstep=1)
     Xslider = Slider(axX, "Init_Pos.", 0, 20, valinit=init_X, valfmt='%1.3f')
     Vslider = Slider(axV, "Init_Vel.", 0.00, 2, valinit=init_V, valfmt='%1.3f')
-    return Nslider, Bslider, Kslider, Xslider, Vslider
+    return Nslider, Bslider, Kslider, Xslider, Vslider, Samplingslider
 
 """
 This function updates the plot of the figure 
@@ -70,20 +72,20 @@ This function updates the plot of the figure
 
 def update_plot(val, line1=None, line2=None, line3=None, line4=None, measuredLine=None, ax1=None,
                      line5=None, line6=None, line7=None, line8=None, ax2=None,
-                Nslider=None, Bslider=None, Kslider=None, Xslider=None, Vslider=None):
+                Nslider=None, Bslider=None, Kslider=None, Xslider=None, Vslider=None, Mslider=None):
     # getting the slider values from the system
     measured_variance = Nslider.val
     accel_variance = Bslider.val
     DT = Kslider.val
     inital_x = Xslider.val
     inital_v = Vslider.val
-
+    MeasuredStep = Mslider.val
     # print("Measured Variance:", measured_variance)
     # print("Initial X:", inital_x)
     # run the kalman filter and get the updated position and velocity
-    position, velocity, mus, covs, measured_P = RunKalmanFilter(init_x=inital_x, init_v=inital_v,
+    position, velocity, mus, covs, measured_P, step = RunKalmanFilter(init_x=inital_x, init_v=inital_v,
                                          accel_var=accel_variance, mea_var=measured_variance,
-                                         ddt=DT)
+                                         ddt=DT, MEAS_EVERY_STEPS=MeasuredStep)
 
     # Now that we have the updated position and velocity
     # go ahead and redraw the plots on the graph
@@ -107,10 +109,9 @@ This function runs the Kalman Filter and outputs the basic it takes the inital p
 and variance in the measured and acceleration.
 Returns: Estimated Position, Velocity, Measured Value, and Covariance
 """
-def RunKalmanFilter(init_x=None, init_v=None, accel_var=None, mea_var=None, ddt=None):
+def RunKalmanFilter(init_x=None, init_v=None, accel_var=None, mea_var=None, ddt=None, MEAS_EVERY_STEPS=None):
     # initial values for the number of steps and Measurements for each steps
     NUM_STEPS = 600
-    MEAS_EVERY_STEPS = 20
     real_x = 0.8 ** 2
     real_v = 0.1
 
@@ -143,7 +144,7 @@ def RunKalmanFilter(init_x=None, init_v=None, accel_var=None, mea_var=None, ddt=
         real_xs.append(real_x)
         real_vs.append(real_v)
 
-    return real_xs, real_vs, mus, covs, measured_xs
+    return real_xs, real_vs, mus, covs, measured_xs, MEAS_EVERY_STEPS
 
 
 if __name__ == "__main__":
@@ -153,10 +154,12 @@ if __name__ == "__main__":
     inital_v = 0.1
     accel_variance = 0.1
     DT = 0.3
+    MEAS_EVERY_STEPS = 20
 
     # Running the Kalman Filter
-    real_xs, real_vs, mus, covs, measured_xs = RunKalmanFilter(init_x=inital_x, init_v=inital_v,
-                                       accel_var=accel_variance, mea_var=measured_variance, ddt=DT)
+    real_xs, real_vs, mus, covs, measured_xs, MEAS_EVERY_STEPS = RunKalmanFilter(init_x=inital_x, init_v=inital_v,
+                                       accel_var=accel_variance, mea_var=measured_variance,
+                                       ddt=DT, MEAS_EVERY_STEPS=MEAS_EVERY_STEPS)
 
     """
     Plotting of the results 
@@ -185,16 +188,15 @@ if __name__ == "__main__":
     ax2, VelMea, VelPredicted, VelCov1, VelCov2, PosMeasured = draw_function(real_xs, real_vs, mus, covs, measured_xs)
 
     # generated the needed sliders
-    E_Measlider, E_Acelslider, DTslider, inital_xslider, inital_vslider = draw_interactive_controls(measured_variance,
-                                                                                                    accel_variance, DT,
-                                                                                                    inital_x, inital_v)
+    E_Measlider, E_Acelslider, DTslider, inital_xslider, inital_vslider, MSlider = draw_interactive_controls(
+                                            measured_variance, accel_variance, DT, inital_x, inital_v, MEAS_EVERY_STEPS)
 
     # specify updating function for interactive controls
     updatefxn = functools.partial(update_plot, line1=Pos, line2= PosPredicted, line3=PosCov1, line4=PosCov2,
                                   line5=VelMea, line6=VelPredicted, line7=VelCov1, line8=VelCov2,
                                   measuredLine=PosMeasured, ax1=ax1, ax2=ax2,
                                   Nslider=E_Measlider, Bslider=E_Acelslider, Kslider=DTslider,
-                                  Xslider=inital_xslider, Vslider=inital_vslider)
+                                  Xslider=inital_xslider, Vslider=inital_vslider, Mslider=MSlider)
 
 
     #  update fxn function when the slider value gets changed
@@ -203,7 +205,7 @@ if __name__ == "__main__":
     DTslider.on_changed(updatefxn)
     inital_xslider.on_changed(updatefxn)
     inital_vslider.on_changed(updatefxn)
-
+    MSlider.on_changed(updatefxn)
     # show the gui screen
     fig.suptitle("Kalman Filter Simplified")
     pylab.show()
